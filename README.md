@@ -3,13 +3,14 @@
 MVP de um orquestrador multi-agente para desenvolvimento de software local.
 Um binário Go roda um pipeline **Planner → Coder → Reviewer** sobre um
 repositório. Cada papel é um loop **ReAct** (raciocina, age com uma ferramenta,
-observa o resultado) que usa o tool calling nativo do Claude.
+observa o resultado) que usa tool calling nativo, via Claude (API da Anthropic)
+ou qualquer modelo com suporte a tools no OpenRouter.
 
 ```
 cmd/orchestrator/        main
 internal/cli/            cobra (run + serve), renderização no console, confirmação via stdin
 internal/config/         variáveis de ambiente / .env
-internal/llm/            interface neutra de provedor + Anthropic (streaming) + mock roteirizado
+internal/llm/            interface neutra de provedor + Anthropic + OpenRouter (streaming) + mock
 internal/orchestrator/   loop ReAct (Agent), papéis/prompts, pipeline, eventos
 internal/tools/          sandbox, política de aprovação, read/write/list/run_command/git_diff
 internal/rpc/            JSON-RPC 2.0 via stdio (ponte para UI Electron/Tauri)
@@ -62,13 +63,35 @@ O padrão é `claude-opus-5-5`, com streaming e as seguintes configurações:
 
 O histórico é append-only e devolve os blocos de thinking à API sem alteração.
 
-Para outro provedor (ex.: OpenAI), implemente `llm.Client` em `internal/llm` e
-registre em `newLLM` (`internal/cli/root.go`).
+### OpenRouter
+
+Use `--provider openrouter` (ou `ORCH_PROVIDER=openrouter`), defina
+`OPENROUTER_API_KEY` e informe o modelo pelo slug do OpenRouter, por exemplo
+`--model anthropic/claude-sonnet-4.5`, `openai/gpt-5` ou
+`google/gemini-2.5-pro`.
+
+O cliente (`internal/llm/openrouter.go`) usa a API Chat Completions com
+streaming SSE e sem dependências extras. Ele:
+
+- converte as ferramentas para `tools[].function`;
+- devolve os resultados como mensagens `role: "tool"`;
+- exibe o `reasoning` no terminal;
+- preserva os `reasoning_details` entre as chamadas, o que alguns modelos
+  exigem durante tool calling;
+- faz retry em 408/429/5xx;
+- envia `provider.require_parameters: true`, para só rotear a provedores que
+  suportam tools.
+
+Escolha um modelo com suporte a tool calling. Modelos fracos em seguir
+instruções podem esgotar `--max-steps` sem chamar a ferramenta terminal.
+
+Para outro provedor, implemente `llm.Client` em `internal/llm` e registre em
+`newLLM` (`internal/cli/root.go`).
 
 ## Variáveis de ambiente
 
-Veja [`.env.example`](.env.example). Apenas `ANTHROPIC_API_KEY` é necessária
-para usar o Claude. O `.env` é lido do **diretório atual**, nunca do repositório
+Veja [`.env.example`](.env.example). Com o provedor `anthropic`, basta
+`ANTHROPIC_API_KEY`. Com `openrouter`, basta `OPENROUTER_API_KEY` + `ORCH_MODEL`. O `.env` é lido do **diretório atual**, nunca do repositório
 alvo.
 
 ## Passo a passo
@@ -98,6 +121,10 @@ EOF
 printf 'module calc\n\ngo 1.25\n' > go.mod && git add . && git commit -qm init && cd -
 
 ./bin/orchestrator --repo /tmp/alvo --task "adicione testes unitários table-driven para a função Soma" -v
+
+# ou via OpenRouter
+OPENROUTER_API_KEY=sk-or-v1-... ./bin/orchestrator --provider openrouter \
+  --model anthropic/claude-sonnet-4.5 --repo /tmp/alvo --task "adicione testes para Soma" -v
 
 # 5. Revise e commite você mesmo
 git -C /tmp/alvo diff

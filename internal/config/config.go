@@ -14,10 +14,11 @@ import (
 
 // Config é a configuração do processo.
 type Config struct {
-	Provider         string        // anthropic | mock
+	Provider         string        // anthropic | openrouter | mock
 	APIKey           string        // ANTHROPIC_API_KEY (opcional se `ant auth login` foi feito)
 	BaseURL          string        // ANTHROPIC_BASE_URL
-	Model            string        // ORCH_MODEL
+	OpenRouter       OpenRouter    // OPENROUTER_*
+	Model            string        // ORCH_MODEL (vazio = padrão do provedor)
 	Effort           string        // ORCH_EFFORT
 	Fallbacks        bool          // ORCH_FALLBACKS
 	MaxTokens        int64         // ORCH_MAX_TOKENS
@@ -25,6 +26,14 @@ type Config struct {
 	MaxReviewRounds  int           // ORCH_MAX_REVIEW_ROUNDS
 	CommandTimeout   time.Duration // ORCH_COMMAND_TIMEOUT
 	ConfirmAllWrites bool          // ORCH_CONFIRM_ALL_WRITES
+}
+
+// OpenRouter agrupa as variáveis do provedor OpenRouter.
+type OpenRouter struct {
+	APIKey  string // OPENROUTER_API_KEY
+	BaseURL string // OPENROUTER_BASE_URL
+	SiteURL string // OPENROUTER_SITE_URL (atribuição opcional)
+	AppName string // OPENROUTER_APP_NAME
 }
 
 // Load lê envFile (se existir; nunca sobrescreve variáveis já definidas) e o ambiente.
@@ -38,8 +47,14 @@ func Load(envFile string) (*Config, error) {
 		Provider: get("ORCH_PROVIDER", "anthropic"),
 		APIKey:   os.Getenv("ANTHROPIC_API_KEY"),
 		BaseURL:  os.Getenv("ANTHROPIC_BASE_URL"),
-		Model:    get("ORCH_MODEL", "claude-opus-5-5"),
+		Model:    os.Getenv("ORCH_MODEL"),
 		Effort:   get("ORCH_EFFORT", "high"),
+		OpenRouter: OpenRouter{
+			APIKey:  os.Getenv("OPENROUTER_API_KEY"),
+			BaseURL: os.Getenv("OPENROUTER_BASE_URL"),
+			SiteURL: os.Getenv("OPENROUTER_SITE_URL"),
+			AppName: get("OPENROUTER_APP_NAME", "orchestrator"),
+		},
 	}
 	var err error
 	if c.Fallbacks, err = getBool("ORCH_FALLBACKS", true); err != nil {

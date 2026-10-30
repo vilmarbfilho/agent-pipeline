@@ -137,7 +137,8 @@ func filteredEnv() []string {
 	for _, kv := range os.Environ() {
 		k, _, _ := strings.Cut(kv, "=")
 		ku := strings.ToUpper(k)
-		if strings.HasPrefix(ku, "ANTHROPIC_") || strings.HasPrefix(ku, "OPENAI_") || strings.HasPrefix(ku, "ORCH_") {
+		if strings.HasPrefix(ku, "ANTHROPIC_") || strings.HasPrefix(ku, "OPENAI_") ||
+			strings.HasPrefix(ku, "OPENROUTER_") || strings.HasPrefix(ku, "ORCH_") {
 			continue
 		}
 		out = append(out, kv)

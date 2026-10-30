@@ -59,8 +59,8 @@ Exemplo:
 	pf := root.PersistentFlags()
 	pf.StringVar(&f.repo, "repo", ".", "caminho do repositório alvo")
 	pf.StringVar(&f.envFile, "env-file", ".env", "arquivo .env a carregar (do diretório atual, não do repo)")
-	pf.StringVar(&f.provider, "provider", "", "provedor LLM: anthropic | mock (padrão: ORCH_PROVIDER ou anthropic)")
-	pf.StringVar(&f.model, "model", "", "modelo (padrão: ORCH_MODEL ou claude-opus-5-5)")
+	pf.StringVar(&f.provider, "provider", "", "provedor LLM: anthropic | openrouter | mock (padrão: ORCH_PROVIDER ou anthropic)")
+	pf.StringVar(&f.model, "model", "", "modelo (padrão: ORCH_MODEL; anthropic: claude-opus-5-5; openrouter: obrigatório, ex. anthropic/claude-sonnet-4.5)")
 	pf.StringVar(&f.effort, "effort", "", "esforço: low | medium | high | xhigh | max (padrão: ORCH_EFFORT ou high)")
 	pf.BoolVar(&f.confirmWrites, "confirm-writes", false, "pedir confirmação para TODA escrita de arquivo")
 	pf.DurationVar(&f.commandTimeout, "command-timeout", 0, "timeout máximo de run_command (ex.: 90s; padrão ORCH_COMMAND_TIMEOUT ou 2m)")
@@ -182,8 +182,17 @@ func newLLM(cfg *config.Config) (llm.Client, error) {
 		return llm.NewAnthropic(llm.AnthropicConfig{
 			APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, Model: cfg.Model, Effort: cfg.Effort, Fallbacks: cfg.Fallbacks,
 		}), nil
+	case "openrouter":
+		return llm.NewOpenRouter(llm.OpenRouterConfig{
+			APIKey:  cfg.OpenRouter.APIKey,
+			BaseURL: cfg.OpenRouter.BaseURL,
+			SiteURL: cfg.OpenRouter.SiteURL,
+			AppName: cfg.OpenRouter.AppName,
+			Model:   cfg.Model,
+			Effort:  cfg.Effort,
+		})
 	default:
-		return nil, fmt.Errorf("provedor desconhecido: %q (use anthropic ou mock)", cfg.Provider)
+		return nil, fmt.Errorf("provedor desconhecido: %q (use anthropic, openrouter ou mock)", cfg.Provider)
 	}
 }
 
